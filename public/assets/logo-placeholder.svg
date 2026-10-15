@@ -1,0 +1,6 @@
+<svg width="250" height="74" viewBox="0 0 250 74" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="4" y="7" width="136" height="55" rx="10" fill="#f2aa05" stroke="#050505" stroke-width="7"/>
+  <path d="M25 51C31 31 45 17 63 20C79 22 75 41 60 39C49 38 45 44 51 48C64 56 87 40 95 27C105 9 124 21 111 38C105 46 113 52 126 41" stroke="#050505" stroke-width="9" stroke-linecap="round"/>
+  <text x="145" y="43" font-family="Brush Script MT, Segoe Script, cursive" font-size="34" fill="#fff" font-weight="700">Coach</text>
+  <text x="82" y="69" font-family="Georgia, serif" font-size="14" fill="#fff" font-style="italic">Exemplary Service...</text>
+</svg>

@@ -1,0 +1,7 @@
+<svg width="190" height="74" viewBox="0 0 190 74" xmlns="http://www.w3.org/2000/svg">
+  <rect width="190" height="74" rx="8" fill="#f8f8f8" stroke="#ddd"/>
+  <circle cx="36" cy="37" r="22" fill="#49a942"/>
+  <text x="36" y="42" text-anchor="middle" font-family="Arial" font-size="14" fill="#fff" font-weight="700">M</text>
+  <text x="70" y="32" font-family="Arial" font-size="18" fill="#333" font-weight="700">Lipa Na</text>
+  <text x="70" y="53" font-family="Arial" font-size="22" fill="#49a942" font-weight="800">M-PESA</text>
+</svg>

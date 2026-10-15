@@ -1,0 +1,91 @@
+
+/* Payment processing overlay - scoped to avoid changing the manual payment modal. */
+.bk-processing-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+}
+
+/* Approximately 358 x 220 px at desktop, as in the supplied screenshot. */
+.bk-processing-overlay .bk-processing-dialog {
+  box-sizing: border-box;
+  width: 358px;
+  max-width: 100%;
+  min-height: 220px;
+  padding: 28px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #fff;
+  color: #555;
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.bk-processing-overlay .bk-processing-symbol {
+  display: block;
+  flex-shrink: 0;
+  color: #35bfff;
+  margin-bottom: 22px;
+}
+
+.bk-processing-overlay .bk-processing-dialog h2 {
+  padding: 0;
+  margin: 0 0 10px;
+  color: #555;
+  font-size: 20px !important;
+  font-weight: 700;
+  line-height: 24px;
+  text-align: center;
+}
+
+.bk-processing-overlay .bk-processing-dialog p {
+  padding: 0;
+  margin: 0;
+  color: #606060;
+  font-size: 13px !important;
+  font-weight: 400;
+  line-height: 18px;
+  text-align: center;
+}
+
+.bk-processing-overlay .bk-processing-loading {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  border-top-color: #298bef;
+  border-bottom-color: #298bef;
+  border-radius: 50%;
+  margin-top: 16px;
+  animation: bk-processing-rotate 0.8s linear infinite;
+}
+
+@keyframes bk-processing-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 420px) {
+  .bk-processing-overlay .bk-processing-dialog {
+    min-height: 210px;
+    padding: 22px 12px 14px;
+  }
+
+  .bk-processing-overlay .bk-processing-dialog h2 {
+    font-size: 19px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-processing-overlay .bk-processing-loading {
+    animation-duration: 2s;
+  }
+}
