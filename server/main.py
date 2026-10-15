@@ -48,6 +48,7 @@ HOLD_SECONDS = max(1, int(os.getenv("BOOKING_HOLD_MINUTES", "15"))) * 60
 # omitted in Render, or still contains only localhost. Extra origins are optional.
 DEFAULT_FRONTEND_ORIGINS = (
     "https://tahmeed-express.onrender.com",
+    "https://tahmeedbusexpress.com",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 )
