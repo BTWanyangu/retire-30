@@ -45,7 +45,7 @@ def test_stable_inventory_and_hold_conflict():
     seats = client.get('/api/trips/' + trip['id'] + '/seats').json()['seats']
     assert not next(x for x in seats if x['number'] == seat)['available']
     assert seats == client.get('/api/trips/' + trip['id'] + '/seats').json()['seats']
-    assert booking['amount'] == trip['fare']
+    assert booking['amount'] == main.fare_for_seat(trip, seat)
     assert booking['phone'] == '254712345678'
 
 
@@ -140,3 +140,63 @@ def test_late_paid_webhook_requires_manual_review():
     assert client.post('/api/webhooks/paylor', content=raw, headers={'X-Webhook-Signature': signature}).status_code == 200
     status = client.get(f"/api/bookings/{booking['reference']}?token={booking['token']}").json()['status']
     assert status == 'PAYMENT_REVIEW'
+
+
+def test_supplied_anchor_prices_unchanged():
+    examples = {
+        ('NAIROBI', 'MOMBASA'): (1000, 1200, 1600, 8.5),
+        ('MOMBASA', 'MUMIAS'): (1800, 2600, 2600, 15.0),
+        # Original source deliberately lists VIP lower than Normal on this route.
+        ('NAIROBI', 'MARIAKANI'): (1200, 1400, 1200, 8.0),
+        ('KISUMU', 'ELDORET'): (600, 600, 800, 2.5),
+        ('BUNGOMA', 'MUMIAS'): (300, 500, 700, 0.75),
+    }
+    for (source, dest), expected in examples.items():
+        route = main.ROUTES[source][dest]
+        assert (route['normal'], route['bClass'], route['vip'], route['durationHrs']) == expected
+        assert not route['estimated']
+        assert main.ROUTES[dest][source] == route
+
+
+def test_full_destination_list_available_and_interpolated_routes():
+    assert len(main.TOWNS) == 122
+    for source in main.TOWNS:
+        assert len(main.ROUTES[source]) == 121
+        assert source not in main.ROUTES[source]
+    assert main.ROUTES['RUIRU']['WATAMU']['estimated']
+    assert 'MTWAPA' in main.ROUTES['NAIROBI']
+
+
+def test_class_prices_and_mixed_seat_checkout():
+    trip = client.post('/api/bookings/search', json={
+        'from': 'nairobi', 'to': 'mombasa', 'date': travel_date, 'passengers': 2,
+    }).json()[0]
+    assert trip['fares'] == {'normal': 1000, 'bClass': 1200, 'vip': 1600}
+    response = client.get('/api/trips/' + trip['id'] + '/seats')
+    assert response.status_code == 200
+    seat_map = response.json()['seats']
+    assert seat_map[0]['category'] == 'VIP' and seat_map[0]['price'] == 1600
+    assert seat_map[8]['category'] == 'Normal' and seat_map[8]['price'] == 1000
+    assert seat_map[36]['category'] == 'Business' and seat_map[36]['price'] == 1200
+    available = [s for s in seat_map if s['available']]
+    first_two = available[:2]
+    body = {'tripId': trip['id'], 'seats': [s['number'] for s in first_two],
+            'boarding': 'Nairobi CBD', 'dropping': 'Mombasa CBD',
+            'passengers': [
+                {'name': f'Passenger {index}', 'idNumber': f'ABC{index}90',
+                 'nationality': 'Kenyan', 'age': 25, 'gender': 'Female',
+                 'email': f'passenger{index}@example.com', 'phone': '0712345678'}
+                for index in range(2)]}
+    response = client.post('/api/bookings', json=body)
+    assert response.status_code == 200, response.text
+    assert response.json()['amount'] == sum(s['price'] for s in first_two)
+
+
+def test_render_frontend_cors_preflight():
+    response = client.options('/api/bookings/search', headers={
+        'Origin': 'https://tahmeed-express.onrender.com',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'content-type',
+    })
+    assert response.status_code == 200
+    assert response.headers['access-control-allow-origin'] == 'https://tahmeed-express.onrender.com'

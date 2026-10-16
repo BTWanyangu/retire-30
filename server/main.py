@@ -19,7 +19,7 @@ import secrets
 import sqlite3
 import time
 from contextlib import contextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -48,8 +48,8 @@ HOLD_SECONDS = max(1, int(os.getenv("BOOKING_HOLD_MINUTES", "15"))) * 60
 # omitted in Render, or still contains only localhost. Extra origins are optional.
 DEFAULT_FRONTEND_ORIGINS = (
     "https://tahmeed-express.onrender.com",
-    "https://tahmeedbusexpress.com",
-    "http://localhost:5173",
+"https://tahmeedbusexpress.com",
+	"http://localhost:5173",
     "http://127.0.0.1:5173",
 )
 
@@ -79,24 +79,52 @@ app.add_middleware(
 # -----------------------------------------------------------------------------
 # Temporary/generated trip inventory (same API contract as current frontend)
 # -----------------------------------------------------------------------------
-TOWNS = [
-    town.strip()
-    for town in (
-        "Awendo,Birongo,Bomet,Bondo,Bumala,Busia,Homa Bay,Katito,Kebirigo,"
-        "Kehancha,Kendu Bay,Kericho,Keroka,Keumbu,Mbita,Kisii,Kisumu,Maseno,"
-        "Migori,Mombasa,Mumias,Nairobi,Nakuru,Narok,Ndhiwa,Nyachege,Nyamira,"
-        "Oyugis,Rodi Kopany,Rongo,Siaya,Sirare,Sondu,Sori,Sotik,Tabaka,Voi"
-    ).split(",")
-]
+# Prices and durations come from src/data/routePrices.js through the generated
+# server/route_catalog.json. Run node scripts/sync-route-catalog.mjs to refresh.
+# Kept inside server/ so Render deployments with Root Directory=server work.
+with (BASE_DIR / 'route_catalog.json').open(encoding='utf-8') as data_file:
+    ROUTE_CATALOG = json.load(data_file)
+TOWNS = ROUTE_CATALOG['places']
+ROUTES = ROUTE_CATALOG['routes']
 TRIP_TIMES = [
-    ("01:00 PM", "06:00 AM", "17h 00m", "MARCOPOLO II"),
-    ("02:30 PM", "06:00 AM", "15h 30m", "POLO G2"),
+    ('01:00 PM', 'MARCOPOLO II'),
+    ('02:30 PM', 'POLO G2'),
 ]
 TERMINALS = {
-    "Mombasa": ["Mombasa CBD", "Mwembe Tayari", "Changamwe"],
-    "Nairobi": ["Nairobi CBD", "Muthurwa", "Westlands"],
-    "Mumias": ["Mumias Town", "Mumias Bus Park"],
+    'MOMBASA': ['Mombasa CBD', 'Mwembe Tayari', 'Changamwe'],
+    'NAIROBI': ['Nairobi CBD', 'Muthurwa', 'Westlands'],
+    'MUMIAS': ['Mumias Town', 'Mumias Bus Park'],
 }
+
+
+def normalize_place(value: str) -> str:
+    return str(value).strip().upper()
+
+
+def seat_class(seat_number: int) -> str:
+    # Matches the existing seat-layout legend exactly.
+    return 'VIP' if seat_number <= 8 else 'Business' if seat_number >= 37 else 'Normal'
+
+
+def fare_for_seat(trip: dict, seat_number: int) -> int:
+    if seat_number < 1 or seat_number > 49:
+        err('Invalid seat number')
+    key = {'Normal': 'normal', 'Business': 'bClass', 'VIP': 'vip'}[seat_class(seat_number)]
+    return int(trip['fares'][key])
+
+
+def formatted_duration(hours: float) -> str:
+    total_minutes = round(float(hours) * 60)
+    h, m = divmod(total_minutes, 60)
+    return f'{h}h {m:02d}m' if h else f'{m}m'
+
+
+def arrival_time(travel_date: str, departure: str, hours: float) -> str:
+    time_value = datetime.strptime(departure, '%I:%M %p').time()
+    start = datetime.combine(date.fromisoformat(travel_date), time_value)
+    return (start + timedelta(minutes=round(float(hours) * 60))).strftime('%I:%M %p')
+
+
 PAID_STATUSES = {"COMPLETED", "SUCCESS", "SUCCESSFUL"}
 FAILED_STATUSES = {"FAILED", "CANCELLED", "CANCELED", "REJECTED"}
 ACTIVE_HOLD_STATUSES = ("HELD", "INITIATING", "PAYMENT_PENDING", "FAILED")
@@ -122,45 +150,47 @@ def phone_clean(phone: str) -> str:
 
 
 def validate_trip(trip_id: str) -> tuple[str, str, str, int]:
-    parts = trip_id.split("|")
+    parts = trip_id.split('|')
     if len(parts) != 4:
-        err("Invalid trip identifier")
-    raw_date, source, destination, slot = parts
+        err('Invalid trip identifier')
+    raw_date, raw_source, raw_destination, slot = parts
     try:
         travel_date = date.fromisoformat(raw_date)
     except ValueError:
-        err("Invalid travel date")
-    if (
-        source not in TOWNS
-        or destination not in TOWNS
-        or source == destination
-        or slot not in ("0", "1")
-    ):
-        err("Invalid trip route")
+        err('Invalid travel date')
+    source, destination = normalize_place(raw_source), normalize_place(raw_destination)
+    if source not in ROUTES or destination not in ROUTES.get(source, {}) or slot not in ('0', '1'):
+        err('Invalid trip route')
     if travel_date < datetime.now(LOCAL_TZ).date():
-        err("Travel date is in the past")
+        err('Travel date is in the past')
     return raw_date, source, destination, int(slot)
 
 
 def trip_detail(trip_id: str) -> dict[str, Any]:
     travel_date, source, destination, slot = validate_trip(trip_id)
-    departure, arrival, duration, coach = TRIP_TIMES[slot]
-    fare = 2500 if "Mombasa" in (source, destination) else 1800
+    route = ROUTES[source][destination]
+    departure, coach = TRIP_TIMES[slot]
+    duration_hrs = float(route['durationHrs'])
+    # Keep the exact supplied class prices, including any unusual tier ordering.
+    fares = {key: int(route[key]) for key in ('normal', 'bClass', 'vip')}
+    from_label, to_label = source.title(), destination.title()
     return {
-        "id": trip_id,
-        "date": travel_date,
-        "from": source,
-        "to": destination,
-        "departureTime": departure,
-        "arrivalTime": arrival,
-        "duration": duration,
-        "coach": coach,
-        "fare": fare,
-        "className": "Business / Normal",
-        "amenities": ["Wi-Fi", "USB charging", "Air conditioning"],
-        "routeLabel": f"{source.upper()}-{destination.upper()}",
-        "boardingPoints": TERMINALS.get(source, [f"{source} Town", f"{source} Bus Park"]),
-        "droppingPoints": TERMINALS.get(destination, [f"{destination} Town", f"{destination} Bus Park"]),
+        'id': trip_id,
+        'date': travel_date,
+        'from': from_label,
+        'to': to_label,
+        'departureTime': departure,
+        'arrivalTime': arrival_time(travel_date, departure, duration_hrs),
+        'duration': formatted_duration(duration_hrs),
+        'coach': coach,
+        'fare': fares['normal'],
+        'fares': fares,
+        'estimatedFare': bool(route['estimated']),
+        'className': 'VIP / Business / Normal',
+        'amenities': ['Wi-Fi', 'USB charging', 'Air conditioning'],
+        'routeLabel': f'{source}-{destination}',
+        'boardingPoints': TERMINALS.get(source, [f'{from_label} Town', f'{from_label} Bus Park']),
+        'droppingPoints': TERMINALS.get(destination, [f'{to_label} Town', f'{to_label} Bus Park']),
     }
 
 
@@ -247,11 +277,13 @@ def occupied(db: sqlite3.Connection, trip_id: str) -> set[int]:
 
 def seats_for_trip(db: sqlite3.Connection, trip_id: str) -> list[dict[str, Any]]:
     free = demo_seat_inventory(trip_id) - occupied(db, trip_id)
+    trip = trip_detail(trip_id)
     return [
         {
-            "number": number,
-            "category": "VIP" if number <= 8 else "Business" if number >= 37 else "Normal",
-            "available": number in free,
+            'number': number,
+            'category': seat_class(number),
+            'available': number in free,
+            'price': fare_for_seat(trip, number),
         }
         for number in range(1, 50)
     ]
@@ -318,8 +350,9 @@ def public_config():
 
 @app.post("/api/bookings/search")
 def search_trips(body: SearchInput):
-    if body.from_ not in TOWNS or body.to not in TOWNS or body.from_ == body.to:
-        err("Choose two different towns from the list.")
+    source, destination = normalize_place(body.from_), normalize_place(body.to)
+    if source not in ROUTES or destination not in ROUTES.get(source, {}):
+        err('Choose two different towns from the route list.')
     try:
         travel_date = date.fromisoformat(body.date)
     except ValueError:
@@ -329,7 +362,7 @@ def search_trips(body: SearchInput):
     result = []
     with contextmanager_db() as db:
         for slot in range(len(TRIP_TIMES)):
-            trip = trip_detail(f"{body.date}|{body.from_}|{body.to}|{slot}")
+            trip = trip_detail(f'{body.date}|{source}|{destination}|{slot}')
             trip["seatsLeft"] = sum(
                 seat["available"] for seat in seats_for_trip(db, trip["id"])
             )
@@ -371,7 +404,7 @@ def reserve(body: BookingInput):
             available = {seat["number"] for seat in seats_for_trip(db, body.tripId) if seat["available"]}
             if not set(body.seats).issubset(available):
                 err("One or more seats are no longer available. Please select different seats.", 409)
-            amount = trip["fare"] * len(body.seats)
+            amount = sum(fare_for_seat(trip, seat) for seat in body.seats)
             db.execute(
                 """INSERT INTO bookings (
                     reference, access_token, trip_id, seats, boarding, dropping,

@@ -99,6 +99,7 @@ export default function BookingSearch() {
     setForm((current) => ({
       ...current,
       [name]: value,
+      ...(name === 'from' && current.to === value ? { to: '' } : {}),
     }));
 
     setError('');
@@ -159,8 +160,8 @@ export default function BookingSearch() {
     event.preventDefault();
     setError('');
 
-    if (!form.from || !form.to) {
-      setError('Select both departure and destination towns.');
+    if (!form.from || !form.to || form.from === form.to) {
+      setError('Select two different locations from the dropdown lists.');
       return;
     }
 
@@ -346,49 +347,35 @@ function BookingSelectField({
   name,
   value,
   placeholder,
-  mobilePlaceholder,
   options,
   onChange,
 }) {
+  // Native, fully visible dropdown: every location is selectable without typing.
+  // Browsers also support jumping to an entry using the keyboard.
   return (
-    <label className="relative min-h-[69px] rounded-[6px] border border-[#ff9b6a] bg-white md:min-h-[70px] md:rounded-none md:border-0 md:border-r md:border-[#e5e7eb]">
-      <span className="absolute left-2 top-3 z-[2] text-[11px] font-semibold text-[#20242a] md:left-[50px] md:top-[18px] md:text-[11px] md:font-extrabold md:uppercase md:leading-none md:text-[#555b63]">
+    <label className="relative block min-h-[69px] rounded-[6px] border border-[#ff9b6a] bg-white md:min-h-[70px] md:rounded-none md:border-0 md:border-r md:border-[#e5e7eb]">
+      <span className="absolute left-2 top-3 z-[2] pointer-events-none text-[11px] font-semibold text-[#20242a] md:left-[50px] md:top-[18px] md:text-[11px] md:font-extrabold md:uppercase md:leading-none md:text-[#555b63]">
         {label}
       </span>
-
-      <i className="absolute bottom-[17px] left-[10px] z-[2] flex h-[18px] w-[18px] text-[#606977] md:bottom-[24px] md:left-[22px] md:h-[18px] md:w-[18px]">
+      <i className="pointer-events-none absolute bottom-[17px] left-[10px] z-[2] flex h-[18px] w-[18px] text-[#606977] md:bottom-[24px] md:left-[22px] md:h-[18px] md:w-[18px]">
         {icon}
       </i>
-
-      <span
-        className={`
-          pointer-events-none absolute bottom-[17px] left-[40px] z-[2] text-[14px] font-extrabold
-          md:bottom-[18px] md:left-[50px] md:text-[16px] md:font-normal md:leading-none
-          ${value ? 'text-[#111111]' : 'text-[#65748a] md:text-[#aab2bd]'}
-        `}
-      >
-        {value || (
-          <>
-            <span className="md:hidden">{mobilePlaceholder}</span>
-            <span className="hidden md:inline">{placeholder}</span>
-          </>
-        )}
-      </span>
-
       <select
         name={name}
         value={value}
         onChange={onChange}
-        aria-label={label}
-        className="absolute inset-0 z-[3] h-full w-full cursor-pointer opacity-0"
+        required
+        aria-label={`${label} location`}
+        className={`absolute inset-0 z-[1] h-full w-full cursor-pointer appearance-none rounded-[6px] bg-transparent pb-[10px] pl-[40px] pr-8 pt-[27px] text-[14px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-[#ff6408] md:rounded-none md:pb-[12px] md:pl-[50px] md:pt-[30px] md:text-[16px] ${value ? 'text-[#111]' : 'text-[#8793a3]'}`}
       >
-        <option value="">{placeholder}</option>
+        <option value="" disabled>{placeholder} — choose from {options.length} locations</option>
         {options.map((town) => (
-          <option key={town} value={town}>
-            {town}
-          </option>
+          <option key={town} value={town}>{town}</option>
         ))}
       </select>
+      <svg className="pointer-events-none absolute bottom-[20px] right-[10px] h-4 w-4 text-[#687385] md:bottom-[24px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="m6 9 6 6 6-6"/>
+      </svg>
     </label>
   );
 }

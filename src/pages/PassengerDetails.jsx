@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Armchair, MapPin, ShieldCheck } from 'lucide-react';
 import { checkoutApi } from '../api/checkoutApi';
+import { categoryForSeat, ticketFare, totalFare } from '../utils/pricing';
 
 const money = n => Number(n).toLocaleString('en-KE');
 const newPassenger = () => ({ name: '', idNumber: '', nationality: 'Kenyan', age: '', gender: '', email: '', phone: '' });
@@ -62,14 +63,17 @@ export function FareSidebar({ draft, booking }) {
   const trip = booking?.trip || draft?.trip;
   if (!trip) return null;
   const seats = booking?.seats || draft?.seats || [];
-  const amount = booking?.amount ?? seats.length * trip.fare;
+  const amount = booking?.amount ?? totalFare(trip, seats);
   return <aside className="bk-fare-sidebar">
     <h3>Onward Trip</h3><div className="bk-route-summary"><div><small>Departure</small><b>{trip.departureTime}</b></div><div><small>Arrival</small><b>{trip.arrivalTime}</b></div></div>
     <div className="bk-route-summary bk-stops"><div><small>Boarding Point</small><b><MapPin size={13} color="#f04438"/>{trip.from.toUpperCase()}</b><span>{booking?.boarding || draft?.boarding}</span></div>
       <div><small>Dropping Point</small><b><MapPin size={13}/>{trip.to.toUpperCase()}</b><span>{booking?.dropping || draft?.dropping}</span></div></div>
     <div className="bk-sidebar-seats"><Armchair size={17}/> Selected Seats: <strong>{seats.join(', ')}</strong></div>
     <h3 className="bk-fare-heading">FARE BREAKUP</h3><p className="bk-breakup-row"><span>Onward Journey</span></p>
-    <p className="bk-breakup-row"><span>{seats.length} passenger(s)</span><span>KES {money(amount)}</span></p>
+    {seats.map(number => <p className="bk-breakup-row" key={number}>
+      <span>Seat {number} · {categoryForSeat(number)}</span>
+      <span>KES {money(ticketFare(trip, number))}</span>
+    </p>)}
     <p className="bk-breakup-row bold"><span>Onward Fare</span><span>KES {money(amount)}</span></p>
     <div className="bk-breakup-divider"/><p className="bk-breakup-row"><span>Additional Fees</span></p><p className="bk-breakup-row"><span>Insurance</span><span>KES 0</span></p><p className="bk-breakup-row"><span>Discount</span><span className="red">KES 0</span></p>
     <div className="bk-total-payable"><b>Total Payable</b><b>KES {money(amount)}.00</b></div>

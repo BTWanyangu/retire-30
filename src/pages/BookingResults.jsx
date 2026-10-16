@@ -2,24 +2,25 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BusFront, Clock3, MapPin, Search, ShieldCheck, Star, Wifi, X } from 'lucide-react';
 import { checkoutApi } from '../api/checkoutApi';
+import { totalFare } from '../utils/pricing';
 
 const money = (amount) => Number(amount).toLocaleString('en-KE');
-const demoText = '';
 const seatCss = (seat, selected) => !seat.available ? 'seat-booked' : selected ? 'seat-selected' :
   seat.category === 'VIP' ? 'seat-vip' : seat.category === 'Business' ? 'seat-business' : 'seat-normal';
 
 function SeatMap({ seats, chosen, onSeat, limit }) {
   const find = (n) => seats.find(s => s.number === n);
+  const classFare = (category) => seats.find(seat => seat.category === category)?.price;
   const cell = (n) => {
     const seat = find(n);
     return seat ? <button key={n} type="button" disabled={!seat.available}
       aria-label={`Seat ${n}, ${seat.available ? seat.category + ' available' : 'booked'}`}
-      aria-pressed={chosen.includes(n)} title={`Seat ${n} · ${seat.category}`}
+      aria-pressed={chosen.includes(n)} title={`Seat ${n} · ${seat.category} · KES ${money(seat.price)}`}
       className={`coach-seat ${seatCss(seat, chosen.includes(n))}`}
       onClick={() => onSeat(n)}>{n}</button> : null;
   };
   return <div className="seat-zone">
-    <div className="seat-key"><span><i className="key-vip"/>VIP</span><span><i className="key-normal"/>Normal</span><span><i className="key-business"/>Business</span><span><i className="key-booked"/>Booked</span></div>
+    <div className="seat-key"><span><i className="key-vip"/>VIP KES {money(classFare('VIP'))}</span><span><i className="key-normal"/>Normal KES {money(classFare('Normal'))}</span><span><i className="key-business"/>Business KES {money(classFare('Business'))}</span><span><i className="key-booked"/>Booked</span></div>
     <div className="coach-top"><span>DOOR</span><span className="wheel">◉</span></div>
     <div className="coach-grid" aria-label={`Choose up to ${limit} seats`}>
       {Array.from({ length: 12 }, (_, row) => <div className="coach-row" key={row}>
@@ -94,7 +95,7 @@ export default function BookingResults() {
         <label className="bk-filter"><Star size={16}/><select aria-label="Filter amenities" value={onlyWifi ? 'wifi' : ''} onChange={e=>setOnlyWifi(Boolean(e.target.value))}><option value="">Amenities</option><option value="wifi">Wi-Fi</option></select></label>
       </div>
       <div className="bk-result-heading"><span>Search Result</span><span>{filtered.length} Found</span></div>
-      
+      {query.tripType === 'round-trip' && <div className="bk-demo-note"><ShieldCheck size={14}/>Return leg must be booked separately.</div>}
       {error && <div className="bk-error" role="alert">{error}<button onClick={()=>setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
       {load ? <div className="bk-loading">Searching available trips…</div> : !filtered.length ? <div className="bk-loading">No trips found for your filters.</div> :
         <div className={`bk-results-layout ${active ? 'bk-results-expanded' : ''}`}>
@@ -105,7 +106,11 @@ export default function BookingResults() {
               <div className="bk-duration"><span/>{trip.duration}<span/></div>
               <div className="bk-trip-time"><strong>{trip.arrivalTime}</strong><span>{trip.to.toUpperCase()}</span></div>
               {!active && <div className="bk-seat-availability"><b>★ 3.7</b> ({trip.seatsLeft} seats left)</div>}
-              <div className="bk-price">{active ? '' : <small>Normal · Business</small>}<strong>KES {money(trip.fare)}</strong></div>
+              <div className="bk-price" title={`Normal KES ${money(trip.fares.normal)} | Business KES ${money(trip.fares.bClass)} | VIP KES ${money(trip.fares.vip)}`}>
+                <small>Normal · KES {money(trip.fares.normal)}</small>
+                <small>Business · KES {money(trip.fares.bClass)}</small>
+                <small>VIP · KES {money(trip.fares.vip)}</small>
+              </div>
               <button className={active===trip.id?'bk-close-btn':'bk-outline-btn'} onClick={()=>chooseTrip(trip.id)}>{active===trip.id ? 'Close' : 'View Seats'}</button>
             </article>)}
           </div>
@@ -113,8 +118,8 @@ export default function BookingResults() {
             <SeatMap seats={seatData.seats} chosen={chosen} onSeat={selectSeat} limit={query.passengers}/>
             <div className="bk-seat-summary">
               <div><h3>Selected Seats</h3><p>{chosen.length ? `Seats: ${chosen.join(', ')}` : 'No seats selected'}</p>
-                <small>{chosen.length ? `${chosen.length} ticket(s)` : 'Choose your seats above'}</small></div>
-              <div className="bk-total"><strong>KES {money(chosen.length*seatData.trip.fare)}</strong><small>Total Amount</small></div>
+                <small>{chosen.length ? chosen.map(n => `Seat ${n}: KES ${money(seatData.seats.find(s => s.number === n)?.price || 0)}`).join(' · ') : 'Choose your seats above'}</small></div>
+              <div className="bk-total"><strong>KES {money(totalFare(seatData.trip, chosen))}</strong><small>Total Amount</small></div>
             </div>
             <div className="bk-boarding-grid"><label>Boarding Point<select value={boarding} onChange={e=>setBoarding(e.target.value)}><option value="">Select a boarding point</option>{seatData.trip.boardingPoints.map(p=><option key={p}>{p}</option>)}</select></label>
               <label>Dropping Point<select value={dropping} onChange={e=>setDropping(e.target.value)}><option value="">Select a dropping point</option>{seatData.trip.droppingPoints.map(p=><option key={p}>{p}</option>)}</select></label></div>

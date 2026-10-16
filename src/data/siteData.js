@@ -1,3 +1,5 @@
+import { allPlaces } from './routePrices.js';
+
 export const navLinks = [
   { label: 'Home', href: '/' },
   { label: 'About', href: '/about' },
@@ -8,13 +10,8 @@ export const navLinks = [
   
 ];
 
-export const towns = [
-  'Awendo', 'Birongo', 'Bomet', 'Bondo', 'Bumala', 'Busia', 'Homa Bay', 'Katito',
-  'Kebirigo', 'Kehancha', 'Kendu Bay', 'Kericho', 'Keroka', 'Keumbu', 'Mbita',
-  'Kisii', 'Kisumu', 'Maseno', 'Migori', 'Mombasa', 'Mumias', 'Nairobi', 'Nakuru', 'Narok',
-  'Ndhiwa', 'Nyachege', 'Nyamira', 'Oyugis', 'Rodi Kopany', 'Rongo', 'Siaya',
-  'Sirare', 'Sondu', 'Sori', 'Sotik', 'Tabaka', 'Voi'
-];
+// One authoritative place list, as supplied in the route-and-fare data.
+export const towns = allPlaces;
 
 export const popularRoutes = [
   { from: 'Mombasa', to: 'Kisii', subtitle: 'Coast to western highlands', duration: '10h 30m' },
@@ -61,10 +58,10 @@ export const offices = [
 ];
 
 export const gallery = [
-  { src: '/assets/gallery/gallery-1.png', alt: 'Tahmeed Coach fleet image 1' },
-  ...Array.from({ length: 4 }, (_, index) => ({
+  { src: '/assets/gallery/gallery-1.png', alt: 'ENA Coach fleet image 1' },
+  ...Array.from({ length: 15 }, (_, index) => ({
     src: `/assets/gallery/gallery-${index + 2}.jpg`,
-    alt: `Tahmeed Coach fleet image ${index + 2}`,
+    alt: `ENA Coach fleet image ${index + 2}`,
   })),
 ];
 
@@ -72,12 +69,12 @@ export const heroSlides = [
   {
     id: 1,
     image: '/assets/image1.png',
-    alt: 'Tahmeed bus travelling on a Kenyan highway',
+    alt: 'ENA Coach bus travelling on a Kenyan highway',
   },
   {
     id: 2,
     image: '/assets/image2.jpg',
-    alt: 'Tahmeed Coach bus exterior view',
+    alt: 'ENA Coach bus exterior view',
   },
   {
     id: 3,
