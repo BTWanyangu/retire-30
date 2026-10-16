@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { towns } from '../data/siteData';
 
@@ -81,6 +81,7 @@ export default function BookingSearch() {
     returnDate: '',
   });
 
+  const [locationText, setLocationText] = useState({ from: '', to: '' });
   const [openCalendar, setOpenCalendar] = useState(null);
   const [calendarMonth, setCalendarMonth] = useState(fromInputDate(today));
   const [loading, setLoading] = useState(false);
@@ -93,15 +94,27 @@ export default function BookingSearch() {
 
   const minimumReturnDate = form.date ? toInputDate(addDays(form.date, 1)) : today;
 
-  function updateField(event) {
-    const { name, value } = event.target;
+  // Typed text is kept separate from the validated town selection. A traveller
+  // must select a real matching place before searching; partial text is not sent
+  // to the API as a location.
+  function typeLocation(name, text) {
+    setLocationText((current) => ({ ...current, [name]: text }));
+    setForm((current) => ({ ...current, [name]: '' }));
+    setError('');
+  }
 
+  function chooseLocation(name, town) {
+    const clearDestination = name === 'from' && form.to === town;
+    setLocationText((current) => ({
+      ...current,
+      [name]: town,
+      ...(clearDestination ? { to: '' } : {}),
+    }));
     setForm((current) => ({
       ...current,
-      [name]: value,
-      ...(name === 'from' && current.to === value ? { to: '' } : {}),
+      [name]: town,
+      ...(clearDestination ? { to: '' } : {}),
     }));
-
     setError('');
   }
 
@@ -161,7 +174,7 @@ export default function BookingSearch() {
     setError('');
 
     if (!form.from || !form.to || form.from === form.to) {
-      setError('Select two different locations from the dropdown lists.');
+      setError('Type a location and select a matching suggestion for both From and To.');
       return;
     }
 
@@ -231,26 +244,28 @@ export default function BookingSearch() {
           ${tripType === 'one-way' ? 'md:grid-cols-[1.15fr_1.15fr_1fr_auto]' : 'md:grid-cols-[1.15fr_1.15fr_1fr_1fr_auto]'} md:gap-0 md:rounded-[12px] md:border md:border-[#d8dce1] md:bg-white md:p-0
         `}
       >
-        <BookingSelectField
+        <BookingLocationField
           label="From"
           icon={<BusIcon />}
           name="from"
-          value={form.from}
-          placeholder="Source"
-          mobilePlaceholder="e.g Mombasa"
+          query={locationText.from}
+          selected={form.from}
+          placeholder="Search departure"
           options={towns}
-          onChange={updateField}
+          onInput={(text) => typeLocation('from', text)}
+          onSelect={(town) => chooseLocation('from', town)}
         />
 
-        <BookingSelectField
+        <BookingLocationField
           label="To"
           icon={<PinIcon />}
           name="to"
-          value={form.to}
-          placeholder="Destination"
-          mobilePlaceholder="e.g Nairobi"
+          query={locationText.to}
+          selected={form.to}
+          placeholder="Search destination"
           options={destinationOptions}
-          onChange={updateField}
+          onInput={(text) => typeLocation('to', text)}
+          onSelect={(town) => chooseLocation('to', town)}
         />
 
         <DateDisplayField
@@ -341,42 +356,165 @@ function TripRadio({ label, value, checked, onChange }) {
   );
 }
 
-function BookingSelectField({
+/**
+ * Searchable location combobox. A user types a town name, then chooses a
+ * matching destination. The full supplied route catalogue is searchable;
+ * the results panel is height-limited without cutting off matching items.
+ */
+function BookingLocationField({
   label,
   icon,
   name,
-  value,
+  query,
+  selected,
   placeholder,
   options,
-  onChange,
+  onInput,
+  onSelect,
 }) {
-  // Native, fully visible dropdown: every location is selectable without typing.
-  // Browsers also support jumping to an entry using the keyboard.
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const fieldRef = useRef(null);
+  const inputRef = useRef(null);
+  const inputId = useId();
+  const listId = useId();
+
+  const search = query.trim().toLocaleLowerCase();
+  const matches = useMemo(() => {
+    if (!search) return [];
+    return options.filter((town) => town.toLocaleLowerCase().includes(search))
+      .sort((a, b) => {
+        // Prefix matches first, followed by substring matches in A-Z order.
+        const ap = a.toLocaleLowerCase().startsWith(search);
+        const bp = b.toLocaleLowerCase().startsWith(search);
+        return ap === bp ? a.localeCompare(b) : ap ? -1 : 1;
+      });
+  }, [options, search]);
+
+  useEffect(() => {
+    const closeOutside = (event) => {
+      if (!fieldRef.current?.contains(event.target)) {
+        setOpen(false);
+        setActiveIndex(0);
+      }
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('focusin', closeOutside);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('focusin', closeOutside);
+    };
+  }, []);
+
+  function pick(town) {
+    onSelect(town);
+    setActiveIndex(0);
+    setOpen(false);
+  }
+
+  function handleKeys(event) {
+    if (event.key === 'Escape') {
+      if (open) event.preventDefault();
+      setOpen(false);
+      return;
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      setOpen(true);
+      if (!matches.length) return;
+      setActiveIndex((index) => event.key === 'ArrowDown'
+        ? Math.min(index + 1, matches.length - 1)
+        : Math.max(index - 1, 0));
+      return;
+    }
+    if (event.key === 'Enter' && open && matches.length) {
+      // Choosing an option must not submit the whole booking form.
+      event.preventDefault();
+      pick(matches[Math.min(activeIndex, matches.length - 1)]);
+    }
+  }
+
+  const showMatches = open && !!search;
+
   return (
-    <label className="relative block min-h-[69px] rounded-[6px] border border-[#ff9b6a] bg-white md:min-h-[70px] md:rounded-none md:border-0 md:border-r md:border-[#e5e7eb]">
-      <span className="absolute left-2 top-3 z-[2] pointer-events-none text-[11px] font-semibold text-[#20242a] md:left-[50px] md:top-[18px] md:text-[11px] md:font-extrabold md:uppercase md:leading-none md:text-[#555b63]">
+    <div
+      ref={fieldRef}
+      className={`relative min-h-[69px] rounded-[6px] border border-[#ff9b6a] bg-white md:min-h-[70px] md:rounded-none md:border-0 md:border-r md:border-[#e5e7eb] ${open ? 'z-20' : 'z-0'}`}
+    >
+      <label
+        htmlFor={inputId}
+        className="pointer-events-none absolute left-2 top-3 z-[2] text-[11px] font-semibold text-[#20242a] md:left-[50px] md:top-[18px] md:font-extrabold md:uppercase md:leading-none md:text-[#555b63]"
+      >
         {label}
-      </span>
-      <i className="pointer-events-none absolute bottom-[17px] left-[10px] z-[2] flex h-[18px] w-[18px] text-[#606977] md:bottom-[24px] md:left-[22px] md:h-[18px] md:w-[18px]">
+      </label>
+      <i className="pointer-events-none absolute bottom-[17px] left-[10px] z-[2] flex h-[18px] w-[18px] text-[#606977] md:bottom-[24px] md:left-[22px]">
         {icon}
       </i>
-      <select
+      <input
+        id={inputId}
+        ref={inputRef}
         name={name}
-        value={value}
-        onChange={onChange}
+        type="text"
+        autoComplete="off"
+        autoCapitalize="words"
+        spellCheck={false}
+        value={query}
+        onFocus={() => setOpen(true)}
+        onChange={(event) => {
+          onInput(event.target.value);
+          setActiveIndex(0);
+          setOpen(true);
+        }}
+        onKeyDown={handleKeys}
+        placeholder={placeholder}
         required
         aria-label={`${label} location`}
-        className={`absolute inset-0 z-[1] h-full w-full cursor-pointer appearance-none rounded-[6px] bg-transparent pb-[10px] pl-[40px] pr-8 pt-[27px] text-[14px] font-bold outline-none focus-visible:ring-2 focus-visible:ring-[#ff6408] md:rounded-none md:pb-[12px] md:pl-[50px] md:pt-[30px] md:text-[16px] ${value ? 'text-[#111]' : 'text-[#8793a3]'}`}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={showMatches}
+        aria-controls={showMatches ? listId : undefined}
+        aria-activedescendant={showMatches && matches.length ? `${listId}-option-${activeIndex}` : undefined}
+        className={`absolute inset-0 z-[1] h-full w-full rounded-[6px] bg-transparent pb-[10px] pl-[40px] pr-9 pt-[27px] text-[14px] font-bold outline-none placeholder:text-[#8793a3] focus-visible:ring-2 focus-visible:ring-[#ff6408] md:rounded-none md:pb-[12px] md:pl-[50px] md:pt-[30px] md:text-[16px] ${selected ? 'text-[#111]' : 'text-[#425166]'}`}
+      />
+      <svg
+        className="pointer-events-none absolute bottom-[20px] right-[10px] z-[2] h-4 w-4 text-[#687385] md:bottom-[24px]"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        aria-hidden="true"
       >
-        <option value="" disabled>{placeholder} — choose from {options.length} locations</option>
-        {options.map((town) => (
-          <option key={town} value={town}>{town}</option>
-        ))}
-      </select>
-      <svg className="pointer-events-none absolute bottom-[20px] right-[10px] h-4 w-4 text-[#687385] md:bottom-[24px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <path d="m6 9 6 6 6-6"/>
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="m15.5 15.5 5 5" />
       </svg>
-    </label>
+
+      {showMatches && (
+        <div
+          id={listId}
+          role="listbox"
+          aria-label={`${label} matching locations`}
+          className="absolute left-0 right-0 top-[calc(100%+4px)] z-[60] max-h-[265px] overflow-y-auto overscroll-contain rounded-[10px] border border-[#e5e7eb] bg-white py-1 shadow-[0_12px_35px_rgba(0,0,0,0.20)] md:min-w-[235px]"
+        >
+          {matches.length ? matches.map((town, index) => (
+            <button
+              key={town}
+              id={`${listId}-option-${index}`}
+              type="button"
+              role="option"
+              aria-selected={selected === town}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setActiveIndex(index)}
+              onClick={() => pick(town)}
+              className={`block w-full px-4 py-[10px] text-left text-[13px] font-semibold transition md:text-[14px] ${index === activeIndex ? 'bg-[#fff0e5] text-[#e55e00]' : 'text-[#334155] hover:bg-[#fff7f2]'}`}
+            >
+              {town}
+            </button>
+          )) : (
+            <p className="px-4 py-3 text-[13px] text-[#64748b]">No matching locations. Check the spelling.</p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

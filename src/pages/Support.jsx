@@ -11,7 +11,7 @@ export default function Support() {
         </div>
 
         <h1 className="text-[40px] font-extrabold leading-none tracking-[-0.03em] text-[#073575] max-md:text-[28px]">
-          Ena Coach Customer Support
+          Tahmeed Coach Customer Support
         </h1>
 
         <p className="mt-[12px] text-[13px] font-normal leading-none text-[#555b63] max-md:mt-[9px]">

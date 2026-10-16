@@ -58,10 +58,10 @@ export const offices = [
 ];
 
 export const gallery = [
-  { src: '/assets/gallery/gallery-1.png', alt: 'ENA Coach fleet image 1' },
-  ...Array.from({ length: 15 }, (_, index) => ({
+  { src: '/assets/gallery/gallery-1.png', alt: 'Tahmeed Coach fleet image 1' },
+  ...Array.from({ length: 2 }, (_, index) => ({
     src: `/assets/gallery/gallery-${index + 2}.jpg`,
-    alt: `ENA Coach fleet image ${index + 2}`,
+    alt: `Tahmeed Coach fleet image ${index + 2}`,
   })),
 ];
 

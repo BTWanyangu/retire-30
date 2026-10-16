@@ -307,7 +307,7 @@ export default function Footer() {
           >
             <Mail size={15} strokeWidth={1.7} />
 
-            <span>info@enacoach.co.ke</span>
+            <span>info@tahmeedcoach.co.ke</span>
           </a>
 
           {/* FOOTER NAVIGATION */}
@@ -348,42 +348,7 @@ export default function Footer() {
           </nav>
 
           {/* SOCIAL MEDIA ICONS */}
-          <div
-            className="
-              flex
-              items-center
-              justify-end
-              gap-[13px]
-              max-sm:justify-center
-            "
-          >
-            {socialLinks.map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                aria-label={item.label}
-                className="
-                  flex
-                  h-[23px]
-                  w-[20px]
-                  items-center
-                  justify-center
-                  transition-opacity
-                  hover:opacity-70
-                "
-              >
-                <img
-                  src={item.image}
-                  alt={item.label}
-                  className="
-                    h-[20px]
-                    w-[20px]
-                    object-contain
-                  "
-                />
-              </a>
-            ))}
-          </div>
+          
 
         </div>
       </div>
